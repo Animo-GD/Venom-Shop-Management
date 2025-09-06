@@ -46,44 +46,22 @@ VENOM Shop is a comprehensive, locally-hosted web application designed to manage
 3.  Install the required dependencies.
     ```bash
     pip install -r requirements.txt
-  
     ```
-4.  Ensure your project structure includes the `src` directory with `database`, `ChatBot`, and `GUI` submodules as referenced in the code.
-
 ### Running the Application
 
 1.  Make sure you are in the project's root directory.
 2.  Execute the main script:
     ```bash
-    python main.py
+    python app.py
     ```
-    *(Assuming the provided code is saved as `main.py`)*
 3.  The application will start a local server on `http://127.0.0.1:8080` and automatically open your default web browser to the home page.
 
-## 📂 Project Structure (Inferred)
-
-```
-venom-shop/
-├── main.py                 # Main application file (this file)
-├── src/
-│   ├── database/
-│   │   └── DatabaseHandler.py # Handles all database interactions
-│   ├── ChatBot/
-│   │   ├── ChatBot.py      # Primary ChatBot class (API-based)
-│   │   └── LocalChatBot.py # Fallback ChatBot class
-│   └── GUI/
-│       └── ShopUI.py       # Class for UI components like header and chat interface
-└── README.md
-```
-
 ## 🤖 ChatBot Configuration
-
-The application attempts to initialize a `ChatBot` using an API key. If the key is missing or the connection test fails, it seamlessly falls back to a `LocalChatBot`. Ensure your `ChatBot` class is configured with the necessary API credentials if you wish to use external AI services.
+1. Go to [OpenRouter](https://openrouter.ai/)
+2. Create your API key and copy it.
+3. Place it in the `.env` file
 
 ## 📜 License
 
-This project is for educational and demonstration purposes. Please check the specific license for the NiceGUI framework and any other third-party libraries used.
+This project is for educational and demonstration purposes.
 
----
-
-**Developed with ❤️ for efficient shop management.**
