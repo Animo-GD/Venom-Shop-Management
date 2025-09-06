@@ -2,9 +2,7 @@
 
 VENOM Shop is a comprehensive, locally-hosted web application designed to manage the inventory, sales, and specialized laser material operations for a small shop or business. Built with Python and the NiceGUI framework, it offers an intuitive Arabic/English interface with real-time analytics, chatbot assistance, and dedicated modules for general products and laser machine materials.
 
-![VENOM Shop Screenshot](<img width="1527" height="848" alt="image" src="https://github.com/user-attachments/assets/8cf186df-7631-488d-afa4-27e17c2c753b" />
-)
-*Placeholder for Dashboard Screenshot*
+![VENOM Shop Screenshot](png.png)
 
 ## 🌟 Features
 
