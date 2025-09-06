@@ -43,10 +43,10 @@ VENOM Shop is a comprehensive, locally-hosted web application designed to manage
 
 1.  Clone this repository or download the source code.
 2.  Navigate to the project directory in your terminal.
-3.  Install the required dependencies. (You will need to create a `requirements.txt` file based on the imports, e.g., `nicegui`).
+3.  Install the required dependencies.
     ```bash
-    pip install nicegui
-    # Add other dependencies as needed
+    pip install -r requirements.txt
+  
     ```
 4.  Ensure your project structure includes the `src` directory with `database`, `ChatBot`, and `GUI` submodules as referenced in the code.
 
