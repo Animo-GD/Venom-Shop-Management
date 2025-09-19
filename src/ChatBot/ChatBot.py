@@ -1,11 +1,13 @@
 from dotenv import load_dotenv
 import asyncio
-from typing import Optional
+from typing import Optional, Dict, List
 import aiohttp
 import json
 import os
+from datetime import datetime
 from src.database.DatabaseHandler import DatabaseHandler
 db = DatabaseHandler()
+
 class ChatBot:
     def __init__(self, api_key: str = None, model: Optional[str] = None):
         load_dotenv()
@@ -119,7 +121,6 @@ class ChatBot:
         except Exception:
             return False
         
-
 class LocalChatBot:
     def __init__(self):
         self.responses = {
@@ -130,30 +131,79 @@ class LocalChatBot:
             'ربح': 'صافي الربح معروض في لوحة التحكم الرئيسية',
             'مساعدة': 'يمكنني مساعدتك في:\n- معلومات عن المبيعات\n- حالة المخزون\n- البحث عن المنتجات\n- حساب الأرباح'
         }
-    def _search_laser_materials(self, search_term: str, materials_data: list) -> list:
-        """Search for laser materials containing the search term"""
+
+    def _search_products(self, search_term: str, products_data: List[Dict]) -> List[Dict]:
+        """Search for products containing the search term in name, supplier, or notes"""
+        if not products_data:
+            return []
+        
+        results = []
+        search_lower = search_term.lower()
+        for product in products_data:
+            if (search_lower in product.get('name', '').lower() or
+                search_lower in product.get('supplier_name', '').lower() or
+                search_lower in product.get('notes', '').lower()):
+                results.append(product)
+        return results
+
+    def _search_materials(self, search_term: str, materials_data: List[Dict]) -> List[Dict]:
+        """Search for laser materials containing the search term in name, supplier, or notes"""
         if not materials_data:
             return []
         
         results = []
+        search_lower = search_term.lower()
         for material in materials_data:
-            if (search_term.lower() in material.get('name', '').lower() or 
-                search_term.lower() in material.get('material_side', '').lower()):
+            if (search_lower in material.get('name', '').lower() or 
+                search_lower in material.get('material_side', '').lower() or
+                search_lower in material.get('supplier_name', '').lower() or
+                search_lower in material.get('notes', '').lower()):
                 results.append(material)
         return results
 
-    def _search_laser_transactions(self, search_term: str, transactions_data: list) -> list:
+    def _search_orders(self, search_term: str, orders_data: List[Dict]) -> List[Dict]:
+        """Search for orders containing the search term"""
+        if not orders_data:
+            return []
+        
+        results = []
+        search_lower = search_term.lower()
+        for order in orders_data:
+            if (search_lower in order.get('name', '').lower() or 
+                search_lower in order.get('product_name', '').lower() or
+                search_lower in order.get('date', '') or
+                search_lower in order.get('customer_phone', '')):
+                results.append(order)
+        return results
+        
+    def _search_laser_transactions(self, search_term: str, transactions_data: List[Dict]) -> List[Dict]:
         """Search for laser transactions"""
         if not transactions_data:
             return []
         
         results = []
+        search_lower = search_term.lower()
         for transaction in transactions_data:
-            if (search_term.lower() in transaction.get('material_name', '').lower() or 
-                search_term.lower() in transaction.get('customer_name', '').lower() or
-                search_term in transaction.get('date', '')):
+            if (search_lower in transaction.get('material_name', '').lower() or 
+                search_lower in transaction.get('customer_name', '').lower() or
+                search_lower in transaction.get('customer_phone', '').lower() or
+                search_lower in transaction.get('notes', '').lower() or
+                search_lower in transaction.get('date', '')):
                 results.append(transaction)
         return results
+    
+    def _format_date_arabic(self, date_str: str) -> str:
+        """Formats a date string to a more readable Arabic format (without time)"""
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            return date_obj.strftime("%d/%m/%Y")
+        except:
+            return date_str
+
+    def _add_to_memory(self, user_message: str, bot_response: str):
+        """Adds message and response to memory (placeholder)"""
+        pass
+    
     async def get_response(self, message: str, context: str = "") -> str:
         """Get response using local logic and context data"""
         message_lower = message.lower().strip()
@@ -181,9 +231,65 @@ class LocalChatBot:
                 pass
 
         response = ""
+        
+        # General queries
+        if 'مساعدة' in message_lower or 'help' in message_lower:
+            response = '''يمكنني مساعدتك في:
+    🔸 معلومات المحل الرئيسي (مبيعات، مخزون، أرباح)
+    ⚡ معلومات مكينة الليزر (خامات، مبيعات، مكاسب)
+    🔍 البحث بالتواريخ، الموردين، العملاء، أو الملاحظات
+    📊 إحصائيات مفصلة
+
+    جرب تسأل عن:
+    • "ربح المحل"
+    • "متى اشترى احمد؟"
+    • "مين مورد سامسونج؟"
+    • "ابحث عن خامة ملاحظتها فيها تلف"'''
+        elif any(word in message_lower for word in ['سلام', 'السلام', 'مرحبا', 'أهلا']):
+            response = 'أهلاً وسهلاً! 😊 اسألني عن المحل الرئيسي أو مكينة الليزر'
+        elif any(word in message_lower for word in ['شكرا', 'تسلم', 'ممتاز']):
+            response = 'العفو! 😊 أي خدمة تانية للمحل أو الليزر؟'
+
+        # Main Shop-specific queries
+        if not response and any(word in message_lower for word in ['محل', 'بضاعة', 'منتجات']) and not any(word in message_lower for word in ['ليزر', 'laser', 'خامات']):
+            
+            # Main shop analytics query
+            if any(word in message_lower for word in ['ربح', 'مكسب', 'خسارة', 'مبيعات', 'دخل', 'إيراد']):
+                if analytics_data:
+                    response = f'''📊 إحصائيات المحل الرئيسي:
+    💰 إجمالي الدخل: {analytics_data.get("total_revenue", 0):.2f} جنيه
+    📈 صافي الربح: {analytics_data.get("total_profit", 0):.2f} جنيه
+    📉 إجمالي الخسارة (بيع تحت التكلفة): {analytics_data.get("total_loss", 0):.2f} جنيه
+    🛒 عدد الطلبات: {analytics_data.get("total_orders", 0)}
+    📦 عدد المنتجات: {analytics_data.get("products_count", 0)}'''
+                else:
+                    response = "مالقيتش بيانات عن المحل الرئيسي"
+            
+            # Specific product search
+            elif len([w for w in message_lower.split() if len(w) > 2]) > 1:
+                search_terms = [w for w in message_lower.split() if len(w) > 2 and w not in ['محل', 'بضاعة', 'منتجات']]
+                found_products = []
+                for term in search_terms:
+                    found_products.extend(self._search_products(term, full_products))
+                
+                if found_products:
+                    response = "🔍 المنتجات اللي لقيتها:\n\n"
+                    for product in found_products[:5]:
+                        profit = product['sale_price'] - product['purchase_price']
+                        response += f"📦 {product['name']}\n"
+                        response += f"   المورد: {product['supplier_name'] or 'لا يوجد'}\n"
+                        response += f"   المتوفر: {product['stock']:.0f}\n"
+                        response += f"   الشراء: {product['purchase_price']:.2f} | البيع: {product['sale_price']:.2f}\n"
+                        response += f"   الربح: {profit:.2f} جنيه للقطعة\n"
+                        if product['notes']:
+                            response += f"   ملاحظات: {product['notes']}\n"
+                        response += "\n"
+                else:
+                    response = f"مالقيتش منتجات تحتوي على: {', '.join(search_terms)}"
 
         # Laser-specific queries
-        if any(word in message_lower for word in ['ليزر', 'laser', 'خامات', 'خامة']):
+        if not response and any(word in message_lower for word in ['ليزر', 'laser', 'خامات', 'خامة']):
+            
             # Laser analytics query
             if any(word in message_lower for word in ['ربح', 'مكسب', 'خسارة', 'analytics']):
                 if laser_analytics:
@@ -194,48 +300,35 @@ class LocalChatBot:
     🗑️ قيمة الفاقد: {laser_analytics.get("total_waste", 0):.2f} جنيه
     📦 عدد أنواع الخامات: {laser_analytics.get("materials_count", 0)}'''
                 else:
-                    response = "مالقيتش بيانات عن مكينة الليزر"
-
-            # Laser materials stock query
-            elif any(word in message_lower for word in ['مخزون', 'متوفر', 'stock']):
-                if laser_materials:
-                    response = "📦 خامات الليزر المتوفرة:\n\n"
-                    for material in laser_materials[:10]:
-                        stock_status = "🔴" if material['stock_quantity'] < 10 else "🟢"
-                        response += f"{stock_status} {material['name']} ({material['material_side']})\n"
-                        response += f"   الكمية: {material['stock_quantity']:.0f} | البيع: {material['sale_price']:.2f} جنيه\n\n"
-                else:
-                    response = "مفيش خامات ليزر مسجلة حالياً"
-
+                    response = "مالقيتش بيانات كافية عن مكينة الليزر"
+            
             # Specific material search
             elif len([w for w in message_lower.split() if len(w) > 2]) > 1:
-                search_terms = [w for w in message_lower.split() if len(w) > 2 and w not in ['ليزر', 'خامة', 'خامات', 'laser']]
+                search_terms = [w for w in message_lower.split() if len(w) > 2 and w not in ['ليزر', 'خامة', 'خامات', 'laser', 'وش', 'ظهر']]
                 found_materials = []
                 for term in search_terms:
-                    found_materials.extend(self._search_laser_materials(term, laser_materials))
+                    found_materials.extend(self._search_materials(term, laser_materials))
                 
                 if found_materials:
                     response = "🔍 الخامات اللي لقيتها:\n\n"
                     for material in found_materials[:5]:
                         profit = material['sale_price'] - material['purchase_price']
                         response += f"📦 {material['name']} ({material['material_side']})\n"
+                        response += f"   المورد: {material['supplier_name'] or 'لا يوجد'}\n"
                         response += f"   المتوفر: {material['stock_quantity']:.0f}\n"
                         response += f"   الشراء: {material['purchase_price']:.2f} | البيع: {material['sale_price']:.2f}\n"
-                        response += f"   الربح: {profit:.2f} جنيه للقطعة\n\n"
+                        response += f"   الربح: {profit:.2f} جنيه للقطعة\n"
+                        if material['notes']:
+                             response += f"   ملاحظات: {material['notes']}\n"
+                        response += "\n"
                 else:
                     response = f"مالقيتش خامات تحتوي على: {', '.join(search_terms)}"
 
-        # Laser transaction date queries
-        elif any(word in message_lower for word in ['متى', 'امتى', 'تاريخ']) and any(word in message_lower for word in ['ليزر', 'خامة', 'خامات']):
-            search_terms = []
-            words = message_lower.split()
-            skip_words = ['متى', 'امتى', 'تاريخ', 'ليزر', 'خامة', 'خامات', 'اشترى', 'باع']
+        # Order/Transaction queries (main shop & laser)
+        if not response and any(word in message_lower for word in ['متى', 'امتى', 'تاريخ', 'عميل', 'اشترى', 'باع', 'سجل', 'ملاحظات']):
             
-            for word in words:
-                if len(word) > 2 and word not in skip_words:
-                    search_terms.append(word)
-            
-            if search_terms and laser_transactions:
+            if 'ليزر' in message_lower or 'خامة' in message_lower:
+                search_terms = [w for w in message_lower.split() if len(w) > 2 and w not in ['متى', 'امتى', 'تاريخ', 'عميل', 'اشترى', 'باع', 'سجل', 'ملاحظات', 'ليزر', 'خامة', 'خامات', 'laser']]
                 found_transactions = []
                 for term in search_terms:
                     found_transactions.extend(self._search_laser_transactions(term, laser_transactions))
@@ -247,98 +340,65 @@ class LocalChatBot:
                             'purchase': 'شراء',
                             'sale': 'بيع', 
                             'return': 'استرجاع',
-                            'waste': 'فاقد'
+                            'waste': 'تالف'
                         }.get(transaction['transaction_type'], transaction['transaction_type'])
                         
                         formatted_date = self._format_date_arabic(transaction['date'])
                         response += f"⚡ {transaction_type_ar} - {transaction['material_name']} ({transaction['material_side']})\n"
                         response += f"   الكمية: {transaction['quantity']:.0f} | المبلغ: {transaction['total_amount']:.2f} جنيه\n"
                         if transaction['customer_name']:
-                            response += f"   العميل: {transaction['customer_name']}\n"
+                            response += f"   العميل: {transaction['customer_name'] or 'لا يوجد'}\n"
+                        if transaction['notes']:
+                            response += f"   ملاحظات: {transaction['notes']}\n"
                         response += f"   📅 {formatted_date}\n\n"
                 else:
                     response = f"مالقيتش معاملات ليزر تحتوي على: {', '.join(search_terms)}"
-
-        # Check for low stock laser materials
-        elif any(word in message_lower for word in ['قارب', 'نفد', 'خلص', 'قليل']) and any(word in message_lower for word in ['ليزر', 'خامة']):
-            if laser_materials:
-                low_stock = [m for m in laser_materials if m['stock_quantity'] < 10]
-                if low_stock:
-                    response = "⚠️ خامات الليزر اللي قاربت تخلص:\n\n"
-                    for material in low_stock:
-                        response += f"🔴 {material['name']} ({material['material_side']})\n"
-                        response += f"   متبقي: {material['stock_quantity']:.0f} قطعة فقط\n\n"
-                else:
-                    response = "الحمد لله، كل خامات الليزر متوفرة بكمية كافية 👍"
-            else:
-                response = "مفيش خامات ليزر مسجلة للفحص"
-
-        # If no laser-specific response, fall back to original logic
-        if not response:
             
-            if any(word in message_lower for word in ['سلام', 'السلام', 'مرحبا', 'أهلا']):
-                response = 'أهلاً وسهلاً! 😊 اسألني عن المحل الرئيسي أو مكينة الليزر'
-
-            elif any(word in message_lower for word in ['مبيعات', 'دخل', 'إيراد']) and 'ليزر' not in message_lower:
-                if 'total_revenue' in analytics_data:
-                    response = f'إجمالي مبيعات المحل: {analytics_data["total_revenue"]} جنيه 💰'
-                else:
-                    response = 'يمكنك مشاهدة المبيعات في لوحة التحكم الرئيسية'
-
-            elif any(word in message_lower for word in ['ربح', 'أرباح']) and 'ليزر' not in message_lower:
-                if 'total_profit' in analytics_data:
-                    response = f'ربح المحل الرئيسي: {analytics_data["total_profit"]} جنيه 📈'
-                else:
-                    response = 'الأرباح معروضة في لوحة التحكم الرئيسية'
-
-            elif any(word in message_lower for word in ['مخزون', 'بضاعة', 'منتجات']) and 'ليزر' not in message_lower:
-                response = f"منتجات المحل: {analytics_data.get('products_count', '؟')} منتج\n"
-                if 'low_stock_products' in analytics_data and analytics_data['low_stock_products']:
-                    response += f"⚠️ منتجات قاربت تخلص: {', '.join(analytics_data['low_stock_products'][:3])}"
-
-            elif any(word in message_lower for word in ['مساعدة', 'help']):
-                response = '''يمكنني مساعدتك في:
-    🔸 معلومات المحل الرئيسي (مبيعات، مخزون، أرباح)
-    ⚡ معلومات مكينة الليزر (خامات، مبيعات، مكاسب)
-    🔍 البحث بالتاريخ والعملاء
-    📊 إحصائيات مفصلة
-
-    جرب تقول:
-    • "ربح الليزر"
-    • "خامات الليزر المتوفرة" 
-    • "متى اشترى أحمد من الليزر؟"'''
-
-            elif any(word in message_lower for word in ['شكرا', 'تسلم', 'ممتاز']):
-                response = 'العفو! 😊 أي خدمة تانية للمحل أو الليزر؟'
-
-            else:
-                # Enhanced default response
-                main_info = ""
-                laser_info = ""
+            elif 'محل' in message_lower or 'بضاعة' in message_lower:
+                search_terms = [w for w in message_lower.split() if len(w) > 2 and w not in ['متى', 'امتى', 'تاريخ', 'عميل', 'اشترى', 'باع', 'سجل', 'ملاحظات', 'محل', 'بضاعة']]
+                found_orders = []
+                for term in search_terms:
+                    found_orders.extend(self._search_orders(term, full_orders))
                 
-                if analytics_data:
-                    main_info = f'''💰 المحل الرئيسي: {analytics_data.get("total_revenue", "؟")} جنيه مبيعات
+                if found_orders:
+                    response = "📋 الأوردرات اللي لقيتها:\n\n"
+                    for order in found_orders[:5]:
+                        formatted_date = self._format_date_arabic(order['date'])
+                        response += f"🛒 بيع - {order['product_name']}\n"
+                        response += f"   العميل: {order['name'] or 'لا يوجد'}\n"
+                        response += f"   الكمية: {order['quantity']} | المبلغ: {order['total_price']:.2f} جنيه\n"
+                        response += f"   📅 {formatted_date}\n\n"
+                else:
+                    response = f"مالقيتش أوردرات تحتوي على: {', '.join(search_terms)}"
+
+        # If no specific response, fall back to enhanced default response
+        if not response:
+            main_info = ""
+            laser_info = ""
+            
+            if analytics_data:
+                main_info = f'''💰 المحل الرئيسي: {analytics_data.get("total_revenue", "؟")} جنيه مبيعات
     📦 المنتجات: {analytics_data.get("products_count", "؟")} منتج'''
-                
-                if laser_analytics:
-                    laser_info = f'''⚡ مكينة الليزر: {laser_analytics.get("net_profit", "؟")} جنيه ربح
+            
+            if laser_analytics:
+                laser_info = f'''⚡ مكينة الليزر: {laser_analytics.get("net_profit", "؟")} جنيه ربح
     🔥 الخامات: {laser_analytics.get("materials_count", "؟")} نوع'''
-                
-                if main_info or laser_info:
-                    response = f'''معلومات سريعة:
-    {main_info}
-    {laser_info}
+            
+            if main_info or laser_info:
+                response = f'''معلومات سريعة:
+{main_info}
+{laser_info}
 
-    جرب تسأل عن:
-    🔹 "ربح الليزر" أو "خامات متوفرة"
-    🔹 "متى العميل فلان اشترى؟"  
-    🔹 "آخر معاملات الليزر"'''
-                else:
-                    response = '''أسف، مش فاهم سؤالك. جرب تسأل عن:
-    🔹 المبيعات والأرباح (المحل أو الليزر)
-    🔹 المخزون والمنتجات
-    🔹 "متى العميل فلان اشترى؟"
-    🔹 "خامات الليزر المتوفرة"'''
+جرب تسأل عن:
+🔹 "ربح الليزر" أو "خامات متوفرة"
+🔹 "متى العميل فلان اشترى؟"  
+🔹 "آخر معاملات الليزر"'''
+            else:
+                response = '''أسف، مش فاهم سؤالك. جرب تسأل عن:
+🔹 المبيعات والأرباح (المحل أو الليزر)
+🔹 المخزون والمنتجات
+🔹 "متى العميل فلان اشترى؟"
+🔹 "خامات الليزر المتوفرة"'''
 
         # Add to memory
         self._add_to_memory(message, response)
